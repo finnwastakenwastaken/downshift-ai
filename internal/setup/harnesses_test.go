@@ -76,7 +76,7 @@ func TestSetupSummaryStatesWhatChanges(t *testing.T) {
 }
 
 func TestSetupFlatShapes(t *testing.T) {
-	e := newSetupEnv(t, ".cursor", ".gemini")
+	e := newSetupEnv(t, ".cursor")
 	e.write(".cursor/hooks.json", `{"version":1,"hooks":{"preToolUse":[{"command":"downshift cursor","matcher":"Task"},{"command":"other"}]}}`)
 	if code, out, _ := e.run("--yes"); code != 0 {
 		t.Fatalf("exit %d\n%s", code, out)
@@ -85,9 +85,54 @@ func TestSetupFlatShapes(t *testing.T) {
 	if len(cur) != 3 || cur[0].(map[string]any)["command"] != testBin+" cursor" || cur[1].(map[string]any)["command"] != "other" || cur[2].(map[string]any)["matcher"] != "Shell" {
 		t.Errorf("cursor = %v", cur)
 	}
-	ag := parseDoc(t, e.read(".gemini/config/hooks.json"))["PreToolUse"].([]any)
-	if len(ag) != 2 || ag[1].(map[string]any)["matcher"] != "run_command" || ag[0].(map[string]any)["matcher"] != "invoke_subagent" || ag[0].(map[string]any)["command"] != testBin+" antigravity" {
-		t.Errorf("antigravity = %v", ag)
+}
+
+// Antigravity reads hooks.json as named hook groups; a top-level event array
+// makes the whole file fail to parse. Setup writes its own "downshift" group.
+func TestSetupAntigravityWritesANamedGroup(t *testing.T) {
+	e := newSetupEnv(t, ".gemini")
+	if code, out, _ := e.run("--yes"); code != 0 {
+		t.Fatalf("exit %d\n%s", code, out)
+	}
+	doc := parseDoc(t, e.read(".gemini/config/hooks.json"))
+	if _, flat := doc["PreToolUse"]; flat {
+		t.Fatalf("top-level PreToolUse written: %v", doc)
+	}
+	ag := doc["downshift"].(map[string]any)["PreToolUse"].([]any)
+	if len(ag) != 2 {
+		t.Fatalf("antigravity = %v", ag)
+	}
+	for i, want := range []string{"invoke_subagent", "run_command"} {
+		g := ag[i].(map[string]any)
+		inner := g["hooks"].([]any)[0].(map[string]any)
+		if g["matcher"] != want || inner["type"] != "command" || inner["command"] != testBin+" antigravity" {
+			t.Errorf("group %d = %v", i, g)
+		}
+	}
+}
+
+// A file an older setup wrote in the flat layout is moved into the named
+// group; unrelated named groups stay as they are.
+func TestSetupAntigravityMovesTheFlatLayout(t *testing.T) {
+	e := newSetupEnv(t, ".gemini")
+	e.write(".gemini/config/hooks.json", `{"PreToolUse":[{"matcher":"invoke_subagent","command":"/old/downshift antigravity"},{"matcher":"run_command","command":"/old/downshift antigravity"}],"other-sensor":{"PreToolUse":[{"matcher":"run_command","hooks":[{"type":"command","command":"/x/sensor"}]}]}}`)
+	code, out, _ := e.run("--yes")
+	if code != 0 {
+		t.Fatalf("exit %d\n%s", code, out)
+	}
+	if !strings.Contains(out, "cannot read") {
+		t.Errorf("no note about the moved hooks:\n%s", out)
+	}
+	doc := parseDoc(t, e.read(".gemini/config/hooks.json"))
+	if _, flat := doc["PreToolUse"]; flat {
+		t.Fatalf("flat layout left behind: %v", doc)
+	}
+	if ag := doc["downshift"].(map[string]any)["PreToolUse"].([]any); len(ag) != 2 {
+		t.Errorf("downshift group = %v", ag)
+	}
+	other := doc["other-sensor"].(map[string]any)["PreToolUse"].([]any)[0].(map[string]any)["hooks"].([]any)[0].(map[string]any)
+	if other["command"] != "/x/sensor" {
+		t.Errorf("unrelated hook changed: %v", other)
 	}
 }
 

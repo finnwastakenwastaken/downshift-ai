@@ -128,7 +128,11 @@ func MergeTarget(doc *configfile.Object, t Target, binary, stateDir string, skip
 		if h.Wrapper != "" {
 			cmd = WrapperPath(stateDir, h)
 		}
-		if repointElsewhere(holder, h, cmd) {
+		root := holder
+		if t.NamedGroups {
+			root = doc
+		}
+		if repointElsewhere(root, holder, h, cmd) {
 			continue
 		}
 		if t.Nested {
@@ -137,6 +141,9 @@ func MergeTarget(doc *configfile.Object, t Target, binary, stateDir string, skip
 			list = ensureFlatHook(list, h, cmd, ownedMatchers(t.Hooks, h.Event))
 		}
 		holder.Set(h.Event, list)
+	}
+	if t.NamedGroups && holder.Len() == 0 && holder != doc && len(t.HooksPath) > 0 {
+		doc.Del(t.HooksPath[0]) // every hook already lives in another named group
 	}
 	return mergeStatusLine(doc, t, binary, notes)
 }
@@ -155,10 +162,11 @@ func mergeStatusLine(doc *configfile.Object, t Target, binary string, notes []st
 	return notes, nil
 }
 
-// repointElsewhere finds a Downshift hook for h outside holder's own h.Event
-// list, such as inside an Antigravity named group, and points it at cmd. It
-// reports whether one was found, so setup does not add a duplicate.
-func repointElsewhere(holder *configfile.Object, h Hook, cmd string) bool {
+// repointElsewhere finds a Downshift hook for h under root outside holder's
+// own h.Event list, such as inside another Antigravity named group, and points
+// it at cmd. It reports whether one was found, so setup does not add a
+// duplicate. root is holder itself, or the whole file for NamedGroups targets.
+func repointElsewhere(root, holder *configfile.Object, h Hook, cmd string) bool {
 	found := false
 	var walk func(v any, under bool)
 	walk = func(v any, under bool) {
@@ -179,11 +187,20 @@ func repointElsewhere(holder *configfile.Object, h Hook, cmd string) bool {
 			}
 		}
 	}
-	for _, k := range holder.Keys() {
-		if k != h.Event {
-			walk(holder.Value(k), false)
+	var walkObj func(o *configfile.Object)
+	walkObj = func(o *configfile.Object) {
+		for _, k := range o.Keys() {
+			if o == holder && k == h.Event {
+				continue // setup's own list, handled by the caller
+			}
+			if child, ok := configfile.AsObject(o.Value(k)); ok && child == holder {
+				walkObj(child)
+				continue
+			}
+			walk(o.Value(k), false)
 		}
 	}
+	walkObj(root)
 	return found
 }
 

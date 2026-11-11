@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `downshift setup` now writes Antigravity's `~/.gemini/config/hooks.json` as a named hook group (`{"downshift": {"PreToolUse": [{"matcher", "hooks": [...]}]}}`). The top-level `PreToolUse` array it wrote before fails the whole file to parse in Antigravity CLI 1.5.5 (`loaded 0 named hooks`), so neither the routing nor the shell hook ran. Setup moves its own hooks out of that old layout on the next run and leaves other groups alone; a Downshift hook already in another named group is still repointed, not duplicated.
 - The notes `compact` appends after a compacted output (`2>/dev/null`, `|| true`) now count in the "never longer than the raw output" check and in the emitted bytes, so a small output can no longer leave longer than the program printed it.
 - A saved-bytes figure no longer loses savings to a retrieval made by another session that kept the same output.
 - The session hint cannot make a folded output longer than the raw one.

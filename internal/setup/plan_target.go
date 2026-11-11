@@ -102,6 +102,12 @@ func planTarget(o Options, t Target) Plan {
 			pluginNote = append(pluginNote, fmt.Sprintf("removed %d retired Downshift hook(s) from %s: their command no longer exists", removed, t.File))
 		}
 	}
+	for _, l := range t.LegacyLayouts {
+		legacy := Target{HooksPath: l.HooksPath, Nested: l.Nested, Hooks: t.Hooks}
+		if removed := removeOwnHooks(doc, legacy); removed > 0 {
+			pluginNote = append(pluginNote, fmt.Sprintf("moved %d Downshift hook(s) in %s out of a layout %s cannot read", removed, t.File, t.Name))
+		}
+	}
 	if t.Plugin != "" {
 		var parsed any
 		enabled := json.Unmarshal(raw, &parsed) == nil && PluginEnabled(parsed, t.Plugin)

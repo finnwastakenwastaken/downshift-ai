@@ -493,18 +493,27 @@ The interactive wizard asks one extra question after the components: should your
 
 Antigravity executes subagents via `invoke_subagent` and supports arguments modification in its `PreToolUse` hook protocol via `overwrite`.
 
-Register the hook in `~/.gemini/config/hooks.json`:
+Register the hook in `~/.gemini/config/hooks.json`. Antigravity reads that file
+as named hook groups, each handler list wrapped in a `matcher` group:
 
 ```json
 {
-  "PreToolUse": [
-    {
-      "matcher": "invoke_subagent",
-      "command": "downshift antigravity"
-    }
-  ]
+  "downshift": {
+    "PreToolUse": [
+      {
+        "matcher": "invoke_subagent",
+        "hooks": [{ "type": "command", "command": "downshift antigravity" }]
+      }
+    ]
+  }
 }
 ```
+
+A top-level `PreToolUse` array, the layout earlier setups wrote, makes the whole
+file fail to parse (Antigravity CLI 1.5.5 logs `cannot unmarshal array into Go
+struct field .PreToolUse of type jsonhook.JSONHookSpec` and `loaded 0 named
+hooks`), so no hook in it runs. `downshift setup` moves its own hooks out of
+that layout into the `downshift` group.
 
 When Antigravity attempts to spawn a subagent (e.g. inheriting the parent model or requesting `pro`), `downshift antigravity` intercepts the tool call, evaluates the **last** entry in `Subagents` that has a non-empty `Prompt` (not necessarily `Subagents[0]`; trailing rows without `Prompt` are skipped), and rewrites **that** subagent's `Model` (`flash_lite` for mechanical tasks, `flash` for the mid tier) through an `overwrite` envelope that is not a documented vendor field, logging the routing event to `~/.downshift/events.jsonl`.
 

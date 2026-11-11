@@ -214,6 +214,14 @@ var Targets = []Target{
 		Name:      "antigravity",
 		ConfigDir: ".gemini",
 		File:      ".gemini/config/hooks.json",
+		// Antigravity's hooks.json maps hook names to event objects and wraps
+		// handlers in {"matcher","hooks":[...]} groups. A top-level event array
+		// fails the whole file to parse ("cannot unmarshal array into ...
+		// JSONHookSpec"), so no hook in it runs; older setups wrote one.
+		HooksPath:     []string{"downshift"},
+		Nested:        true,
+		NamedGroups:   true,
+		LegacyLayouts: []HookLayout{{}},
 		Hooks: []Hook{
 			{Event: "PreToolUse", Matcher: "invoke_subagent", Args: "antigravity", Rewrites: RewritesModel},
 			{Event: "PreToolUse", Matcher: "run_command", Args: "antigravity", Rewrites: RewritesShell},

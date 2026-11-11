@@ -64,6 +64,12 @@ type Default struct {
 	Suggest string
 }
 
+// HookLayout is where a hook file keeps its hook lists and their entry shape.
+type HookLayout struct {
+	HooksPath []string
+	Nested    bool
+}
+
 type Target struct {
 	Name string
 	// Retired are hooks an older setup wrote for a command that was removed.
@@ -80,11 +86,20 @@ type Target struct {
 	// lists. Empty means the top level of the file.
 	HooksPath []string
 	// Nested selects the entry shape. True: {"matcher","hooks":[{"type":"command","command"}]}
-	// (Claude Code, Codex). False: {"matcher","command"} (Cursor, Antigravity).
-	Nested     bool
-	Defaults   []Default
-	Hooks      []Hook
-	StatusLine *StatusLine
+	// (Claude Code, Codex, Antigravity). False: {"matcher","command"} (Cursor).
+	Nested bool
+	// NamedGroups marks a hook file whose top level maps hook names to event
+	// objects (Antigravity: {"<name>": {"PreToolUse": [...]}}). Setup writes
+	// into its own group (HooksPath), and a Downshift hook already present in
+	// any other group of the file is repointed there, not duplicated.
+	NamedGroups bool
+	// LegacyLayouts are hook locations an older setup wrote that the harness
+	// cannot read. Setup removes its own hooks from them on every run, before
+	// it writes the current layout.
+	LegacyLayouts []HookLayout
+	Defaults      []Default
+	Hooks         []Hook
+	StatusLine    *StatusLine
 	// Notes are printed after the harness is wired (things setup cannot do).
 	Notes []string
 	// RequireFile makes setup edit File only when it already exists. For a
